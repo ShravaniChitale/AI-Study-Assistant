@@ -93,9 +93,17 @@ def register():
 
         username = request.form["username"]
         email = request.form["email"]
+
+        existing_user = User.query.filter_by(
+            email=email
+        ).first()
+
+        if existing_user:
+            return "Email already registered. Please login."
+
         password = generate_password_hash(
-    request.form["password"]
-)
+            request.form["password"]
+        )
 
         new_user = User(
             username=username,
@@ -106,11 +114,7 @@ def register():
         db.session.add(new_user)
         db.session.commit()
 
-        flash("Registration Successful!")
-
-        return redirect(
-            url_for("login")
-        )
+        return "User Registered Successfully!"
 
     return render_template("register.html")
 
