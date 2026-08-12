@@ -1,25 +1,59 @@
-from flask import Flask, render_template, request, session, redirect, url_for, send_from_directory, flash
+from flask import (
+    Flask,
+    render_template,
+    request,
+    session,
+    redirect,
+    url_for,
+    send_from_directory,
+    flash
+)
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from pypdf import PdfReader
-from datetime import datetime
-from flask import send_from_directory
 import os
 
+
 app = Flask(__name__)
-app.secret_key = "mysecretkey"
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+
+# Secret key
+app.secret_key = os.environ.get("SECRET_KEY", "mysecretkey")
+
+# Database
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///database.db"
 
 db = SQLAlchemy(app)
 
+
+# =========================
+# USER MODEL
+# =========================
+
 class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
 
-    username = db.Column(db.String(100), nullable=False)
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
 
-    email = db.Column(db.String(100), unique=True)
+    username = db.Column(
+        db.String(100),
+        nullable=False
+    )
 
-    password = db.Column(db.String(100))
+    email = db.Column(
+        db.String(100),
+        unique=True
+    )
+
+    password = db.Column(
+        db.String(100)
+    )
+
+
+# =========================
+# NOTE MODEL
+# =========================
 
 class Note(db.Model):
 
@@ -52,16 +86,41 @@ class Note(db.Model):
         db.Text
     )
 
+
+# =========================
+# CREATE DATABASE TABLES
+# =========================
+
+with app.app_context():
+    db.create_all()
+
+
+# =========================
+# HOME
+# =========================
+
 @app.route("/")
 def home():
-    return render_template("index.html")
 
-@app.route("/login", methods=["GET", "POST"])
+    return render_template(
+        "index.html"
+    )
+
+
+# =========================
+# LOGIN
+# =========================
+
+@app.route(
+    "/login",
+    methods=["GET", "POST"]
+)
 def login():
 
     if request.method == "POST":
 
         email = request.form["email"]
+
         password = request.form["password"]
 
         user = User.query.filter_by(
@@ -74,32 +133,57 @@ def login():
         ):
 
             session["username"] = user.username
-            flash("Login Successful!")
-            return redirect(url_for("dashboard"))
+
+            flash(
+                "Login Successful!"
+            )
+
+            return redirect(
+                url_for("dashboard")
+            )
 
         else:
 
-            flash("Invalid Email or Password")
-            return redirect(
-              url_for("login")
+            flash(
+                "Invalid Email or Password"
             )
 
-    return render_template("login.html")
+            return redirect(
+                url_for("login")
+            )
 
-@app.route("/register", methods=["GET", "POST"])
+    return render_template(
+        "login.html"
+    )
+
+
+# =========================
+# REGISTER
+# =========================
+
+@app.route(
+    "/register",
+    methods=["GET", "POST"]
+)
 def register():
 
     if request.method == "POST":
 
         username = request.form["username"]
+
         email = request.form["email"]
 
+        # Check duplicate email
         existing_user = User.query.filter_by(
             email=email
         ).first()
 
         if existing_user:
-            return "Email already registered. Please login."
+
+            return (
+                "Email already registered. "
+                "Please login."
+            )
 
         password = generate_password_hash(
             request.form["password"]
@@ -111,17 +195,31 @@ def register():
             password=password
         )
 
-        db.session.add(new_user)
+        db.session.add(
+            new_user
+        )
+
         db.session.commit()
 
-        return "User Registered Successfully!"
+        return (
+            "User Registered Successfully!"
+        )
 
-    return render_template("register.html")
+    return render_template(
+        "register.html"
+    )
+
+
+# =========================
+# DASHBOARD
+# =========================
 
 @app.route("/dashboard")
 def dashboard():
 
-    category = request.args.get("category")
+    category = request.args.get(
+        "category"
+    )
 
     if "username" in session:
 
@@ -141,6 +239,7 @@ def dashboard():
         total_notes = len(notes)
 
         # Analytics Counts
+
         python_notes = Note.query.filter_by(
             username=session["username"],
             category="Python"
@@ -172,13 +271,23 @@ def dashboard():
             maths_notes=maths_notes
         )
 
-    return redirect(url_for("login"))
+    return redirect(
+        url_for("login")
+    )
+
+
+# =========================
+# PROFILE
+# =========================
 
 @app.route("/profile")
 def profile():
 
     if "username" not in session:
-        return redirect(url_for("login"))
+
+        return redirect(
+            url_for("login")
+        )
 
     user = User.query.filter_by(
         username=session["username"]
@@ -189,11 +298,22 @@ def profile():
         user=user
     )
 
-@app.route("/edit_profile", methods=["GET", "POST"])
+
+# =========================
+# EDIT PROFILE
+# =========================
+
+@app.route(
+    "/edit_profile",
+    methods=["GET", "POST"]
+)
 def edit_profile():
 
     if "username" not in session:
-        return redirect(url_for("login"))
+
+        return redirect(
+            url_for("login")
+        )
 
     user = User.query.filter_by(
         username=session["username"]
@@ -201,52 +321,102 @@ def edit_profile():
 
     if request.method == "POST":
 
-        user.username = request.form["username"]
-        user.email = request.form["email"]
+        user.username = request.form[
+            "username"
+        ]
+
+        user.email = request.form[
+            "email"
+        ]
 
         db.session.commit()
 
         session["username"] = user.username
 
-        flash("Profile Updated Successfully!")
+        flash(
+            "Profile Updated Successfully!"
+        )
 
-        return redirect(url_for("profile"))
+        return redirect(
+            url_for("profile")
+        )
 
     return render_template(
         "edit_profile.html",
         user=user
     )
 
+
+# =========================
+# LOGOUT
+# =========================
+
 @app.route("/logout")
 def logout():
 
-    session.pop("username", None)
+    session.pop(
+        "username",
+        None
+    )
 
-    return redirect(url_for("home"))
+    return redirect(
+        url_for("home")
+    )
 
-@app.route("/upload", methods=["GET", "POST"])
+
+# =========================
+# UPLOAD PDF
+# =========================
+
+@app.route(
+    "/upload",
+    methods=["GET", "POST"]
+)
 def upload():
 
     if "username" not in session:
-        return redirect(url_for("login"))
+
+        return redirect(
+            url_for("login")
+        )
 
     if request.method == "POST":
 
         file = request.files["pdf"]
-        category = request.form["category"]
-        if not file.filename.endswith(".pdf"):
 
-           flash("Only PDF files are allowed!")
+        category = request.form[
+            "category"
+        ]
 
-           return redirect(
-              url_for("upload")
-           )
+        if not file.filename.endswith(
+            ".pdf"
+        ):
+
+            flash(
+                "Only PDF files are allowed!"
+            )
+
+            return redirect(
+                url_for("upload")
+            )
+
+        # Create uploads folder
+        os.makedirs(
+            "uploads",
+            exist_ok=True
+        )
+
         filepath = f"uploads/{file.filename}"
 
-        file.save(filepath)
+        file.save(
+            filepath
+        )
 
         # Read PDF
-        reader = PdfReader(filepath)
+
+        reader = PdfReader(
+            filepath
+        )
 
         text = ""
 
@@ -255,22 +425,35 @@ def upload():
             page_text = page.extract_text()
 
             if page_text:
+
                 text += page_text
 
         # Create summary
+
         words = text.split()
 
-        summary = " ".join(words[:150])
+        summary = " ".join(
+            words[:150]
+        )
+
+        # Quiz sentences
+
         quiz = []
+
         sentences = text.split(".")
 
         for sentence in sentences[:5]:
 
-           if len(sentence.split()) > 5:
+            if len(
+                sentence.split()
+            ) > 5:
 
-              quiz.append(sentence.strip())
+                quiz.append(
+                    sentence.strip()
+                )
 
-        # Save note in database
+        # Save note
+
         new_note = Note(
             filename=file.filename,
             username=session["username"],
@@ -279,7 +462,10 @@ def upload():
             category=category
         )
 
-        db.session.add(new_note)
+        db.session.add(
+            new_note
+        )
+
         db.session.commit()
 
         return render_template(
@@ -287,21 +473,35 @@ def upload():
             summary=summary
         )
 
-    return render_template("upload.html")
+    return render_template(
+        "upload.html"
+    )
 
 
-@app.route("/view_summary/<int:id>")
+# =========================
+# VIEW SUMMARY
+# =========================
+
+@app.route(
+    "/view_summary/<int:id>"
+)
 def view_summary(id):
 
     note = Note.query.get(id)
 
     if not note:
+
         return "Note not found"
 
     return render_template(
         "summary.html",
         summary=note.summary
     )
+
+
+# =========================
+# QUIZ
+# =========================
 
 @app.route("/quiz")
 def quiz():
@@ -311,9 +511,12 @@ def quiz():
     ).first()
 
     if not note:
+
         return "No notes uploaded yet."
 
-    sentences = note.text.split(".")
+    sentences = note.text.split(
+        "."
+    )
 
     questions = []
 
@@ -323,14 +526,24 @@ def quiz():
 
         if len(sentence) > 20:
 
-            questions.append(sentence)
+            questions.append(
+                sentence
+            )
 
     return render_template(
         "quiz.html",
         quiz=questions
     )
 
-@app.route("/submit_quiz", methods=["POST"])
+
+# =========================
+# SUBMIT QUIZ
+# =========================
+
+@app.route(
+    "/submit_quiz",
+    methods=["POST"]
+)
 def submit_quiz():
 
     score = 0
@@ -342,6 +555,7 @@ def submit_quiz():
         )
 
         if answer == "A":
+
             score += 1
 
     return f"""
@@ -352,14 +566,24 @@ def submit_quiz():
     </a>
     """
 
-@app.route("/search", methods=["GET", "POST"])
+
+# =========================
+# SEARCH
+# =========================
+
+@app.route(
+    "/search",
+    methods=["GET", "POST"]
+)
 def search():
 
     results = []
 
     if request.method == "POST":
 
-        keyword = request.form["keyword"]
+        keyword = request.form[
+            "keyword"
+        ]
 
         results = Note.query.filter(
             Note.text.contains(keyword)
@@ -370,7 +594,14 @@ def search():
         results=results
     )
 
-@app.route("/download/<filename>")
+
+# =========================
+# DOWNLOAD FILE
+# =========================
+
+@app.route(
+    "/download/<filename>"
+)
 def download_file(filename):
 
     return send_from_directory(
@@ -379,7 +610,14 @@ def download_file(filename):
         as_attachment=True
     )
 
-@app.route("/delete_note/<int:id>")
+
+# =========================
+# DELETE NOTE
+# =========================
+
+@app.route(
+    "/delete_note/<int:id>"
+)
 def delete_note(id):
 
     note = Note.query.get(id)
@@ -389,24 +627,45 @@ def delete_note(id):
         filepath = f"uploads/{note.filename}"
 
         if os.path.exists(filepath):
+
             os.remove(filepath)
 
-        db.session.delete(note)
+        db.session.delete(
+            note
+        )
 
         db.session.commit()
 
-    return redirect(url_for("dashboard"))
+    return redirect(
+        url_for("dashboard")
+    )
 
-@app.route("/change_password", methods=["GET", "POST"])
+
+# =========================
+# CHANGE PASSWORD
+# =========================
+
+@app.route(
+    "/change_password",
+    methods=["GET", "POST"]
+)
 def change_password():
 
     if "username" not in session:
-        return redirect(url_for("login"))
+
+        return redirect(
+            url_for("login")
+        )
 
     if request.method == "POST":
 
-        old_password = request.form["old_password"]
-        new_password = request.form["new_password"]
+        old_password = request.form[
+            "old_password"
+        ]
+
+        new_password = request.form[
+            "new_password"
+        ]
 
         user = User.query.filter_by(
             username=session["username"]
@@ -423,17 +682,27 @@ def change_password():
 
             db.session.commit()
 
-            return "Password Changed Successfully!"
+            return (
+                "Password Changed Successfully!"
+            )
 
         else:
 
-            return "Old Password Incorrect"
+            return (
+                "Old Password Incorrect"
+            )
 
     return render_template(
         "change_password.html"
     )
 
+
+# =========================
+# LOCAL DEVELOPMENT
+# =========================
+
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
-    app.run(debug=True)
+
+    app.run(
+        debug=True
+    )
