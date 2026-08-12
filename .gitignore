@@ -4,3 +4,5 @@ instance/
 uploads/
 *.pyc
 .env
+.ipynb_checkpoints/
+*.ipynb
