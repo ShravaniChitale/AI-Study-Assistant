@@ -201,9 +201,8 @@ def register():
 
         db.session.commit()
 
-        return (
-            "User Registered Successfully!"
-        )
+        flash("Registration Successful! Please login.")
+        return redirect(url_for("login"))
 
     return render_template(
         "register.html"
